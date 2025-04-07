@@ -1,0 +1,15 @@
+$ cat .gitignore
+# ASP.NET Core stuff
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+# React Native / Node stuff
+growmesh-rn-app/node_modules/
+*.env
+
+# Mac / Windows system files
+.DS_Store
+Thumbs.db
