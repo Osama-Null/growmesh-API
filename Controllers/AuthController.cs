@@ -1,11 +1,13 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using growmesh_API.DTOs;
+using growmesh_API.Data;
+using growmesh_API.DTOs.RequestDTOs;
 using growmesh_API.DTOs.ResponseDTOs;
 using growmesh_API.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace growmesh_API.Controllers
@@ -14,11 +16,13 @@ namespace growmesh_API.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _configuration;
+        private readonly ApplicationDbContext _db;
 
-        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration)
+        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration, ApplicationDbContext db)
         {
             _userManager = userManager;
             _configuration = configuration;
+            _db = db;
         }
 
         [HttpPost("login")]
@@ -82,6 +86,7 @@ namespace growmesh_API.Controllers
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 DateOfBirth = model.DateOfBirth,
+                PhoneNumber = model.Phone,
                 ProfilePictureUrl = imagePath
             };
 
@@ -95,6 +100,15 @@ namespace growmesh_API.Controllers
                 }
                 return BadRequest(result.Errors);
             }
+
+            var bankAccount = new BankAccount
+            {
+                UserId = user.Id,
+                Balance = 0
+            };
+
+            _db.BankAccounts.Add(bankAccount);
+            await _db.SaveChangesAsync();
 
             // Generate claims
             var authClaims = new List<Claim>

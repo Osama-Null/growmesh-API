@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace growmesh_API.DTOs
+namespace growmesh_API.DTOs.RequestDTOs
 {
     public class LoginDTO
     {

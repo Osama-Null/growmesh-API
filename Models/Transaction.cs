@@ -28,7 +28,7 @@ namespace growmesh_API.Models
         Deposit,
         Withdrawal,
         TransferToGoal,
-        TransferFromGoal,
+        TransferFromGoal
     }
     // ----------------------- Enums -----------------------
 }

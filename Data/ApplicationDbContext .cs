@@ -6,9 +6,13 @@ namespace growmesh_API.Data
 {
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
+        // Constructor
         public ApplicationDbContext (DbContextOptions<ApplicationDbContext> options) : base(options) {}
 
         // Entity
-        // public DbSet<>  { get; set; }
+        public DbSet<BankAccount> BankAccounts { get; set; }
+        public DbSet<Request> Requests { get; set; }
+        public DbSet<SavingsGoal> SavingsGoals { get; set; }
+        public DbSet<Transaction> Transactions { get; set; }
     }
 }

@@ -1,7 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
-using growmesh_API.Models.Attributes;
+﻿using growmesh_API.Models.Attributes;
+using System.ComponentModel.DataAnnotations;
 
-namespace growmesh_API.DTOs
+namespace growmesh_API.DTOs.RequestDTOs
 {
     public class RegisterDTO
     {
@@ -32,6 +32,11 @@ namespace growmesh_API.DTOs
         [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters long")]
         [Compare("Password", ErrorMessage = "*Passwords do not match")]
         public string ConfirmPassword { get; set; }
+
+        [Required(ErrorMessage = "*Enter phone number")]
+        [Phone(ErrorMessage = "Invalid phone number format")]
+        [StringLength(8, MinimumLength = 8, ErrorMessage = "Phone number must be 8 characters")]
+        public string Phone { get; set; }
 
         public IFormFile? ProfilePicture { get; set; }
     }

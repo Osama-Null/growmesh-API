@@ -26,20 +26,26 @@ namespace growmesh_API.Models
         [Required]
         public LockType LockType { get; set; }
 
-        public bool IsCompleted { get; set; } = false;
-
-        public bool IsUnlocked { get; set; } = false;
+        [Required]
+        public SavingsGoalStatus Status { get; set; } = SavingsGoalStatus.InProgress;
 
         [Required]
-        [ForeignKey("User")]
-        public string UserId { get; set; }
-        public ApplicationUser? User { get; set; }
+        [ForeignKey("BankAccount")]
+        public int BankAccountId { get; set; } // Foreign key to BankAccount
+        public BankAccount? BankAccount { get; set; }
     }
     // ----------------------- Enums -----------------------
     public enum LockType
     {
         TimeBased,
         AmountBased
+    }
+
+    public enum SavingsGoalStatus
+    {
+        InProgress,
+        Completed,
+        Unlocked
     }
     // ----------------------- Enums -----------------------
 }
