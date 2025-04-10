@@ -10,6 +10,7 @@ namespace growmesh_API.Models
         [Required]
         public RequestType Type { get; set; }
 
+        [Column(TypeName = "decimal(18,2)")]
         public decimal? WithdrawalAmount { get; set; }
 
         [Required]

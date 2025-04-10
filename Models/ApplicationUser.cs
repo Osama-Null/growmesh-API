@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace growmesh_API.Models
 {
-    public class ApplicationUser: IdentityUser
+    public class ApplicationUser : IdentityUser
     {
         [Required(ErrorMessage = "*Enter first name")]
         [StringLength(10, ErrorMessage = "First name cannot exceed 10 characters")]

@@ -13,5 +13,8 @@ namespace growmesh_API.DTOs.RequestDTOs
 
         [StringLength(500, ErrorMessage = "Reason cannot exceed 500 characters")]
         public string? Reason { get; set; }
+
+        [Required(ErrorMessage = "Savings goal ID is required")]
+        public int SavingsGoalId { get; set; }
     }
 }

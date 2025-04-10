@@ -6,24 +6,27 @@ namespace growmesh_API.Models
     public class Transaction
     {
         public int TransactionId { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
         public decimal Amount { get; set; }
+
         public DateTime TransactionDate { get; set; } = DateTime.Now;
 
         [Required]
-        public Type Type { get; set; }
+        public TransactionType Type { get; set; }
 
         [Required]
         [ForeignKey("BankAccount")]
-        public int AccountId { get; set; }
+        public int BankAccountId { get; set; }
         public BankAccount? BankAccount { get; set; }
 
         [Required]
         [ForeignKey("SavingsGoal")]
-        public int SavingsGoalId { get; set; }
+        public int? SavingsGoalId { get; set; }
         public SavingsGoal? SavingsGoal { get; set; }
     }
     // ----------------------- Enums -----------------------
-    public enum Type
+    public enum TransactionType
     {
         Deposit,
         Withdrawal,
