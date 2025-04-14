@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace growmesh_API.Migrations
 {
     /// <inheritdoc />
-    public partial class FirstMig : Migration
+    public partial class test1 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -30,10 +30,10 @@ namespace growmesh_API.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    FirstName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    LastName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FirstName = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    LastName = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    DateOfBirth = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ProfilePictureUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    DateOfBirth = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -160,6 +160,103 @@ namespace growmesh_API.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "BankAccounts",
+                columns: table => new
+                {
+                    BankAccountId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Balance = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BankAccounts", x => x.BankAccountId);
+                    table.ForeignKey(
+                        name: "FK_BankAccounts_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SavingsGoals",
+                columns: table => new
+                {
+                    SavingsGoalId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SavingsGoalName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    TargetAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CurrentAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TargetDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    LockType = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    BankAccountId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SavingsGoals", x => x.SavingsGoalId);
+                    table.ForeignKey(
+                        name: "FK_SavingsGoals_BankAccounts_BankAccountId",
+                        column: x => x.BankAccountId,
+                        principalTable: "BankAccounts",
+                        principalColumn: "BankAccountId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Requests",
+                columns: table => new
+                {
+                    RequestId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Type = table.Column<int>(type: "int", nullable: false),
+                    WithdrawalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    RequestDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    SavingsGoalId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Requests", x => x.RequestId);
+                    table.ForeignKey(
+                        name: "FK_Requests_SavingsGoals_SavingsGoalId",
+                        column: x => x.SavingsGoalId,
+                        principalTable: "SavingsGoals",
+                        principalColumn: "SavingsGoalId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Transactions",
+                columns: table => new
+                {
+                    TransactionId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TransactionDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Type = table.Column<int>(type: "int", nullable: false),
+                    BankAccountId = table.Column<int>(type: "int", nullable: false),
+                    SavingsGoalId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Transactions", x => x.TransactionId);
+                    table.ForeignKey(
+                        name: "FK_Transactions_BankAccounts_BankAccountId",
+                        column: x => x.BankAccountId,
+                        principalTable: "BankAccounts",
+                        principalColumn: "BankAccountId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Transactions_SavingsGoals_SavingsGoalId",
+                        column: x => x.SavingsGoalId,
+                        principalTable: "SavingsGoals",
+                        principalColumn: "SavingsGoalId");
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 table: "AspNetRoleClaims",
@@ -198,6 +295,31 @@ namespace growmesh_API.Migrations
                 column: "NormalizedUserName",
                 unique: true,
                 filter: "[NormalizedUserName] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BankAccounts_UserId",
+                table: "BankAccounts",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Requests_SavingsGoalId",
+                table: "Requests",
+                column: "SavingsGoalId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SavingsGoals_BankAccountId",
+                table: "SavingsGoals",
+                column: "BankAccountId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Transactions_BankAccountId",
+                table: "Transactions",
+                column: "BankAccountId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Transactions_SavingsGoalId",
+                table: "Transactions",
+                column: "SavingsGoalId");
         }
 
         /// <inheritdoc />
@@ -219,7 +341,19 @@ namespace growmesh_API.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "Requests");
+
+            migrationBuilder.DropTable(
+                name: "Transactions");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
+
+            migrationBuilder.DropTable(
+                name: "SavingsGoals");
+
+            migrationBuilder.DropTable(
+                name: "BankAccounts");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");

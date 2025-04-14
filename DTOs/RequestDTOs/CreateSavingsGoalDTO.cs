@@ -14,15 +14,22 @@ namespace growmesh_API.DTOs.RequestDTOs
         [Column(TypeName = "decimal(18,2)")]
         public decimal TargetAmount { get; set; }
 
-        [Required(ErrorMessage = "Target date is required")]
         [DataType(DataType.Date)]
         [FutureDate(ErrorMessage = "Target date must be in the future")]
-        public DateTime TargetDate { get; set; }
+        public DateTime? TargetDate { get; set; }
 
         [StringLength(500, ErrorMessage = "Description cannot exceed 500 characters")]
         public string? Description { get; set; }
 
         [Required(ErrorMessage = "Lock type is required")]
         public LockType LockType { get; set; }
+
+        [Range(0.01, double.MaxValue, ErrorMessage = "Deposit amount must be greater than zero")]
+        public decimal? DepositAmount { get; set; }
+
+        public DepositFrequency? DepositFrequency { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Custom deposit interval must be at least 1 day")]
+        public int? CustomDepositIntervalDays { get; set; }
     }
 }

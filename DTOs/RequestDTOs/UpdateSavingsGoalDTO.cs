@@ -17,5 +17,13 @@ namespace growmesh_API.DTOs.RequestDTOs
         public string? Description { get; set; }
 
         public LockType? LockType { get; set; }
+
+        [Range(0.01, double.MaxValue, ErrorMessage = "Deposit amount must be greater than zero")]
+        public decimal? DepositAmount { get; set; }
+
+        public DepositFrequency? DepositFrequency { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Custom deposit interval must be at least 1 day")]
+        public int? CustomDepositIntervalDays { get; set; }
     }
 }

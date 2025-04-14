@@ -12,6 +12,8 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace growmesh_API.Controllers
 {
+    [Route("api/[controller]")]
+    [ApiController]
     public class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;

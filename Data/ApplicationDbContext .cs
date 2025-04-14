@@ -14,5 +14,17 @@ namespace growmesh_API.Data
         public DbSet<Request> Requests { get; set; }
         public DbSet<SavingsGoal> SavingsGoals { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // Configure Transaction -> SavingsGoal relationship to disable cascading delete
+            modelBuilder.Entity<Transaction>()
+                .HasOne(t => t.SavingsGoal)
+                .WithMany()
+                .HasForeignKey(t => t.SavingsGoalId)
+                .OnDelete(DeleteBehavior.NoAction);
+        }
     }
 }

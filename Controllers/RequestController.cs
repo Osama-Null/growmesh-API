@@ -40,6 +40,11 @@ namespace growmesh_API.Controllers
             var savingsGoal = bankAccount.SavingsGoals.FirstOrDefault(sg => sg.SavingsGoalId == requestDto.SavingsGoalId);
             if (savingsGoal == null) return NotFound("Savings goal not found");
 
+            if (savingsGoal.Status == SavingsGoalStatus.Completed && (requestDto.Type == RequestType.Unlock || requestDto.Type == RequestType.PartialWithdrawal))
+            {
+                return BadRequest("Cannot process Unlock or Partial Withdrawal requests for a completed savings goal");
+            }
+
             var request = new Request
             {
                 Type = requestDto.Type,
@@ -54,21 +59,38 @@ namespace growmesh_API.Controllers
             {
                 case RequestType.Unlock:
                     savingsGoal.Status = SavingsGoalStatus.Unlocked;
+
+                    // Check if the savings goal is completed after unlocking
+                    bool isCompleted = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.Now) ||
+                                       (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
+
+                    if (isCompleted && savingsGoal.CurrentAmount > 0)
+                    {
+                        var amountToTransfer = savingsGoal.CurrentAmount;
+                        bankAccount.Balance += amountToTransfer;
+                        savingsGoal.CurrentAmount = 0;
+                        savingsGoal.Status = SavingsGoalStatus.Completed;
+
+                        var transaction = new Transaction
+                        {
+                            Amount = amountToTransfer,
+                            TransactionDate = DateTime.Now,
+                            Type = TransactionType.TransferFromGoal,
+                            BankAccountId = bankAccount.BankAccountId,
+                            SavingsGoalId = savingsGoal.SavingsGoalId
+                        };
+                        _context.Transactions.Add(transaction);
+                    }
                     break;
 
                 case RequestType.PartialWithdrawal:
                     if (request.WithdrawalAmount == null)
                         return BadRequest("Withdrawal amount is required for partial withdrawal requests");
 
-                    if (savingsGoal.Status != SavingsGoalStatus.Unlocked && savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate > DateTime.Now)
-                        return BadRequest("Savings goal is locked until the target date");
-
-                    if (savingsGoal.Status != SavingsGoalStatus.Unlocked && savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount < savingsGoal.TargetAmount)
-                        return BadRequest("Savings goal is locked until the target amount is reached");
-
                     if (savingsGoal.CurrentAmount < request.WithdrawalAmount)
                         return BadRequest("Insufficient funds in savings goal");
 
+                    // Removed lock checks to allow partial withdrawals regardless of lock status or completion
                     savingsGoal.CurrentAmount -= request.WithdrawalAmount.Value;
                     bankAccount.Balance += request.WithdrawalAmount.Value;
 

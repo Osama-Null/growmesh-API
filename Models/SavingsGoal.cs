@@ -18,13 +18,23 @@ namespace growmesh_API.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal CurrentAmount { get; set; }
 
-        [Required(ErrorMessage = "Target date is required")]
         [DataType(DataType.Date)]
         [FutureDate(ErrorMessage = "Target date must be in the future")]
-        public DateTime TargetDate { get; set; }
+        public DateTime? TargetDate { get; set; }
 
         [StringLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
         public string? Description { get; set; }
+
+        // ------------- Custom intervals && automatic deposits -------------
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? DepositAmount { get; set; }
+
+        public DepositFrequency? DepositFrequency { get; set; }
+
+        public int? CustomDepositIntervalDays { get; set; }
+
+        public DateTime? LastDepositDate { get; set; }
+        // ------------- Custom intervals && automatic deposits -------------
 
         [Required(ErrorMessage = "Lock type is required")]
         public LockType LockType { get; set; }
@@ -52,12 +62,24 @@ namespace growmesh_API.Models
         Completed,
         Unlocked
     }
+
+    public enum DepositFrequency
+    {
+        Monthly,
+        Weekly,
+        Custom
+    }
     // ----------------------- Enums -----------------------
 
     public class FutureDateAttribute : ValidationAttribute
     {
         protected override ValidationResult IsValid(object value, ValidationContext validationContext)
         {
+            if (value == null)
+            {
+                return ValidationResult.Success;
+            }
+
             if (value is DateTime date)
             {
                 if (date <= DateTime.Now)

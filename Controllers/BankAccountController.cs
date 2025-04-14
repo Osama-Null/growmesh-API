@@ -21,7 +21,7 @@ namespace growmesh_API.Controllers
         }
 
         // GET: api/BankAccount/get
-        [HttpGet("get")]
+        [HttpGet("get-info")]
         public async Task<ActionResult<BankAccountDTO>> GetBankAccount()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -35,7 +35,7 @@ namespace growmesh_API.Controllers
 
             return new BankAccountDTO
             {
-                AccountId = bankAccount.BankAccountId,
+                BankAccountId = bankAccount.BankAccountId,
                 Balance = bankAccount.Balance,
                 SavingsGoals = bankAccount.SavingsGoals.Select(sg => new SavingsGoalDTO
                 {
@@ -53,159 +53,37 @@ namespace growmesh_API.Controllers
             };
         }
 
-        // GET: api/BankAccount/get-requests
-        [HttpGet("get-requests")]
-        public async Task<ActionResult<IEnumerable<RequestResponseDTO>>> GetRequests()
-        {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            var bankAccount = await _context.BankAccounts
-                .Include(ba => ba.SavingsGoals)
-                .ThenInclude(sg => sg.Requests) // Now works with the new navigation property
-                .FirstOrDefaultAsync(ba => ba.UserId == userId);
-
-            if (bankAccount == null) return NotFound("Bank account not found");
-
-            var requests = bankAccount.SavingsGoals
-                .SelectMany(sg => sg.Requests)
-                .Select(r => new RequestResponseDTO
-                {
-                    RequestId = r.RequestId,
-                    Type = r.Type,
-                    WithdrawalAmount = r.WithdrawalAmount,
-                    RequestDate = r.RequestDate,
-                    Reason = r.Reason,
-                    SavingsGoalId = r.SavingsGoalId
-                })
-                .ToList();
-
-            return requests;
-        }
-
-        // PUT: api/BankAccount/update
-        [HttpPut("update")]
-        public async Task<IActionResult> UpdateBankAccount([FromBody] UpdateBankAccountDTO bankAccountDto)
+        // POST: api/BankAccount/deposit
+        [HttpPost("deposit")]
+        public async Task<IActionResult> Deposit([FromBody] DepositToBankAccountDTO depositDto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            var bankAccount = await _context.BankAccounts
-                .FirstOrDefaultAsync(ba => ba.UserId == userId);
-
-            if (bankAccount == null) return NotFound("Bank account not found");
-
-            bankAccount.Balance = bankAccountDto.Balance;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!BankAccountExists(bankAccount.BankAccountId))
-                {
-                    return NotFound();
-                }
-                throw;
-            }
-
-            return Ok(new { success = true, message = "Bank account updated successfully" });
-        }
-
-        // POST: api/BankAccount/transfer-to-goal
-        [HttpPost("transfer-to-goal")]
-        public async Task<IActionResult> TransferToGoal([FromQuery] int savingsGoalId, [FromBody] decimal amount)
-        {
+            var amount = depositDto.Amount;
             if (amount <= 0) return BadRequest("Amount must be greater than zero");
 
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-            var bankAccount = await _context.BankAccounts
-                .Include(ba => ba.SavingsGoals)
-                .FirstOrDefaultAsync(ba => ba.UserId == userId);
-
+            var bankAccount = await _context.BankAccounts.FirstOrDefaultAsync(ba => ba.UserId == userId);
             if (bankAccount == null) return NotFound("Bank account not found");
-
-            var savingsGoal = bankAccount.SavingsGoals.FirstOrDefault(sg => sg.SavingsGoalId == savingsGoalId);
-            if (savingsGoal == null) return NotFound("Savings goal not found");
-
-            if (bankAccount.Balance < amount) return BadRequest("Insufficient funds in bank account");
-
-            bankAccount.Balance -= amount;
-            savingsGoal.CurrentAmount += amount;
-
-            var transaction = new Transaction
-            {
-                Amount = amount,
-                TransactionDate = DateTime.Now,
-                Type = TransactionType.TransferToGoal, // Updated to TransactionType
-                BankAccountId = bankAccount.BankAccountId,
-                SavingsGoalId = savingsGoal.SavingsGoalId
-            };
-
-            _context.Transactions.Add(transaction);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Transfer to savings goal successful" });
-        }
-
-        // POST: api/BankAccount/pull-from-goal
-        [HttpPost("pull-from-goal")]
-        public async Task<IActionResult> PullFromGoal([FromQuery] int savingsGoalId, [FromBody] decimal amount)
-        {
-            if (amount <= 0) return BadRequest("Amount must be greater than zero");
-
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-            var bankAccount = await _context.BankAccounts
-                .Include(ba => ba.SavingsGoals)
-                .FirstOrDefaultAsync(ba => ba.UserId == userId);
-
-            if (bankAccount == null) return NotFound("Bank account not found");
-
-            var savingsGoal = bankAccount.SavingsGoals.FirstOrDefault(sg => sg.SavingsGoalId == savingsGoalId);
-            if (savingsGoal == null) return NotFound("Savings goal not found");
-
-            if (savingsGoal.CurrentAmount < amount) return BadRequest("Insufficient funds in savings goal");
-
-            if (savingsGoal.Status != SavingsGoalStatus.Unlocked && savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate > DateTime.Now)
-            {
-                return BadRequest("Savings goal is locked until the target date");
-            }
-
-            if (savingsGoal.Status != SavingsGoalStatus.Unlocked && savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount < savingsGoal.TargetAmount)
-            {
-                return BadRequest("Savings goal is locked until the target amount is reached");
-            }
 
             bankAccount.Balance += amount;
-            savingsGoal.CurrentAmount -= amount;
 
-            var transaction = new Transaction
-            {
-                Amount = amount,
-                TransactionDate = DateTime.Now,
-                Type = TransactionType.TransferFromGoal,
-                BankAccountId = bankAccount.BankAccountId,
-                SavingsGoalId = savingsGoal.SavingsGoalId
-            };
-
-            _context.Transactions.Add(transaction);
             await _context.SaveChangesAsync();
 
-            return Ok(new { success = true, message = "Funds pulled from savings goal successfully" });
+            var bankAccountDto = new BankAccountDTO
+            {
+                BankAccountId = bankAccount.BankAccountId,
+                Balance = bankAccount.Balance
+            };
+
+            return Ok(new { success = true, message = "Deposit successful", bankAccount = bankAccountDto });
         }
 
         private bool BankAccountExists(int id)
         {
             return _context.BankAccounts.Any(e => e.BankAccountId == id);
         }
-
-
     }
 }

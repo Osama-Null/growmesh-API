@@ -8,10 +8,13 @@ namespace growmesh_API.DTOs.ResponseDTOs
         public string SavingsGoalName { get; set; }
         public decimal TargetAmount { get; set; }
         public decimal CurrentAmount { get; set; }
-        public DateTime TargetDate { get; set; }
+        public DateTime? TargetDate { get; set; }
         public string? Description { get; set; }
         public LockType LockType { get; set; }
         public SavingsGoalStatus Status { get; set; }
         public int BankAccountId { get; set; }
+        public decimal? DepositAmount { get; set; }
+        public DepositFrequency? DepositFrequency { get; set; }
+        public int? CustomDepositIntervalDays { get; set; }
     }
 }
