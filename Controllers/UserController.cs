@@ -31,7 +31,7 @@ namespace growmesh_API.Controllers
 
         // GET: api/User/profile
         [HttpGet("profile")]
-        public async Task<ActionResult<UserResponseDTO>> GetProfile()
+        public async Task<ActionResult> GetProfile()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -46,7 +46,7 @@ namespace growmesh_API.Controllers
                 LastName = user.LastName,
                 DateOfBirth = user.DateOfBirth,
                 Phone = user.PhoneNumber,
-                ProfilePictureUrl = user.ProfilePictureUrl
+                ProfilePicture = user.ProfilePicture
             };
 
             return Ok(userDto);
@@ -74,7 +74,7 @@ namespace growmesh_API.Controllers
             }
 
             // Handle profile picture upload
-            string imagePath = user.ProfilePictureUrl;
+            string imagePath = user.ProfilePicture;
             if (model.ProfilePicture != null)
             {
                 var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images");
@@ -93,9 +93,9 @@ namespace growmesh_API.Controllers
                 imagePath = $"/images/{fileName}";
 
                 // Delete old profile picture if exists
-                if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", user.ProfilePictureUrl.TrimStart('/'))))
+                if (!string.IsNullOrEmpty(user.ProfilePicture) && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", user.ProfilePicture.TrimStart('/'))))
                 {
-                    System.IO.File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", user.ProfilePictureUrl.TrimStart('/')));
+                    System.IO.File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", user.ProfilePicture.TrimStart('/')));
                 }
             }
 
@@ -103,7 +103,7 @@ namespace growmesh_API.Controllers
             user.Email = model.Email;
             user.UserName = model.Email;
             user.PhoneNumber = model.Phone;
-            user.ProfilePictureUrl = imagePath;
+            user.ProfilePicture = imagePath;
 
             // Validate the updated user
             var validationResults = new List<ValidationResult>();
@@ -112,7 +112,7 @@ namespace growmesh_API.Controllers
 
             if (!isValid)
             {
-                if (imagePath != null && imagePath != user.ProfilePictureUrl && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/'))))
+                if (imagePath != null && imagePath != user.ProfilePicture && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/'))))
                 {
                     System.IO.File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/')));
                 }
@@ -124,7 +124,7 @@ namespace growmesh_API.Controllers
             var result = await _userManager.UpdateAsync(user);
             if (!result.Succeeded)
             {
-                if (imagePath != null && imagePath != user.ProfilePictureUrl && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/'))))
+                if (imagePath != null && imagePath != user.ProfilePicture && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/'))))
                 {
                     System.IO.File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/')));
                 }
@@ -136,7 +136,7 @@ namespace growmesh_API.Controllers
             {
                 Email = user.Email,
                 Phone = user.PhoneNumber,
-                ProfilePictureUrl = user.ProfilePictureUrl
+                ProfilePicture = user.ProfilePicture
             };
 
             return Ok(updatedUserDto);

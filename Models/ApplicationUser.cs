@@ -18,6 +18,6 @@ namespace growmesh_API.Models
         [MinimumAge(18, ErrorMessage = "You must be at least 18 years old")]
         public DateTime DateOfBirth { get; set; }
 
-        public string? ProfilePictureUrl { get; set; }
+        public string? ProfilePicture { get; set; }
     }
 }

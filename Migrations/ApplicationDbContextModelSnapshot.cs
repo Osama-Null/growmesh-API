@@ -210,7 +210,7 @@ namespace growmesh_API.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
-                    b.Property<string>("ProfilePictureUrl")
+                    b.Property<string>("ProfilePicture")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SecurityStamp")
@@ -315,6 +315,9 @@ namespace growmesh_API.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Emoji")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("LastDepositDate")
                         .HasColumnType("datetime2");

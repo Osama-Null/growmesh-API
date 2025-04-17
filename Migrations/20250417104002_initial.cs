@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace growmesh_API.Migrations
 {
     /// <inheritdoc />
-    public partial class test1 : Migration
+    public partial class initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -33,7 +33,7 @@ namespace growmesh_API.Migrations
                     FirstName = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     LastName = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     DateOfBirth = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ProfilePictureUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProfilePicture = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -189,8 +189,13 @@ namespace growmesh_API.Migrations
                     SavingsGoalName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     TargetAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     CurrentAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TargetDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Emoji = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TargetDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    DepositAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    DepositFrequency = table.Column<int>(type: "int", nullable: true),
+                    CustomDepositIntervalDays = table.Column<int>(type: "int", nullable: true),
+                    LastDepositDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     LockType = table.Column<int>(type: "int", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     BankAccountId = table.Column<int>(type: "int", nullable: false)

@@ -18,6 +18,8 @@ namespace growmesh_API.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal CurrentAmount { get; set; }
 
+        public string? Emoji { get; set; }
+
         [DataType(DataType.Date)]
         [FutureDate(ErrorMessage = "Target date must be in the future")]
         public DateTime? TargetDate { get; set; }

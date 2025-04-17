@@ -72,7 +72,8 @@ namespace growmesh_API.Controllers
                 DepositAmount = model.DepositAmount,
                 DepositFrequency = model.DepositFrequency,
                 CustomDepositIntervalDays = model.DepositFrequency == DepositFrequency.Custom ? model.CustomDepositIntervalDays : null,
-                LastDepositDate = (model.DepositAmount.HasValue && model.DepositFrequency.HasValue) ? DateTime.Now : null // Set initial deposit date if automatic deposits are enabled
+                LastDepositDate = (model.DepositAmount.HasValue && model.DepositFrequency.HasValue) ? DateTime.Now : null, // Set initial deposit date if automatic deposits are enabled
+                Emoji = model.Emoji
             };
 
             _context.SavingsGoals.Add(savingsGoal);
@@ -91,7 +92,8 @@ namespace growmesh_API.Controllers
                 BankAccountId = savingsGoal.BankAccountId,
                 DepositAmount = savingsGoal.DepositAmount,
                 DepositFrequency = savingsGoal.DepositFrequency,
-                CustomDepositIntervalDays = savingsGoal.CustomDepositIntervalDays
+                CustomDepositIntervalDays = savingsGoal.CustomDepositIntervalDays,
+                Emoji = savingsGoal.Emoji
             });
         }
 
@@ -118,7 +120,8 @@ namespace growmesh_API.Controllers
                 Description = sg.Description,
                 LockType = sg.LockType,
                 Status = sg.Status,
-                BankAccountId = sg.BankAccountId
+                BankAccountId = sg.BankAccountId,
+                Emoji = sg.Emoji
             }).ToList();
 
             return savingsGoals;
@@ -143,11 +146,12 @@ namespace growmesh_API.Controllers
                 SavingsGoalName = savingsGoal.SavingsGoalName,
                 TargetAmount = savingsGoal.TargetAmount,
                 CurrentAmount = savingsGoal.CurrentAmount,
-                //TargetDate = savingsGoal.TargetDate,
+                TargetDate = savingsGoal.TargetDate,
                 Description = savingsGoal.Description,
                 LockType = savingsGoal.LockType,
                 Status = savingsGoal.Status,
-                BankAccountId = savingsGoal.BankAccountId
+                BankAccountId = savingsGoal.BankAccountId,
+                Emoji = savingsGoal.Emoji
             };
         }
 
@@ -181,6 +185,7 @@ namespace growmesh_API.Controllers
             if (model.SavingsGoalName != null) savingsGoal.SavingsGoalName = model.SavingsGoalName;
             if (model.TargetDate.HasValue) savingsGoal.TargetDate = model.TargetDate.Value;
             if (model.Description != null) savingsGoal.Description = model.Description;
+            if (model.Emoji != null) savingsGoal.Emoji = model.Emoji;
 
             if (model.LockType.HasValue)
             {

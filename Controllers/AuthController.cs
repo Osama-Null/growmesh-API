@@ -5,6 +5,7 @@ using growmesh_API.Data;
 using growmesh_API.DTOs.RequestDTOs;
 using growmesh_API.DTOs.ResponseDTOs;
 using growmesh_API.Models;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,12 +20,14 @@ namespace growmesh_API.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _db;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration, ApplicationDbContext db)
+        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration, ApplicationDbContext db, IWebHostEnvironment webHostEnvironment)
         {
             _userManager = userManager;
             _configuration = configuration;
             _db = db;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         [HttpPost("login")]
@@ -63,24 +66,26 @@ namespace growmesh_API.Controllers
             {
                 return BadRequest(ModelState);
             }
-            string imagePath = null;
-            if (model.ProfilePicture != null)
-            {
-                var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images");
-                if (!Directory.Exists(uploadsDir))
-                {
-                    Directory.CreateDirectory(uploadsDir);
-                }
+            // string imagePath = null
 
-                var fileName = Guid.NewGuid().ToString() + Path.GetExtension(model.ProfilePicture.FileName);
-                var filePath = Path.Combine(uploadsDir, fileName);
+            //if (model.ProfilePicture != null)
+            //{
+            //    var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images");
+            //    if (!Directory.Exists(uploadsDir))
+            //    {
+            //        Directory.CreateDirectory(uploadsDir);
+            //    }
 
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await model.ProfilePicture.CopyToAsync(stream);
-                }
-                imagePath = $"/images/{fileName}";
-            }
+            //    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(model.ProfilePicture.FileName);
+            //    var filePath = Path.Combine(uploadsDir, fileName);
+
+            //    using (var stream = new FileStream(filePath, FileMode.Create))
+            //    {
+            //        await model.ProfilePicture.CopyToAsync(stream);
+            //    }
+            //    imagePath = $"/images/{fileName}";
+            //}
+            string imagePath = UploadedFile(model);
 
             var user = new ApplicationUser
             {
@@ -90,16 +95,21 @@ namespace growmesh_API.Controllers
                 LastName = model.LastName,
                 DateOfBirth = model.DateOfBirth,
                 PhoneNumber = model.Phone,
-                ProfilePictureUrl = imagePath
+                ProfilePicture = imagePath
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);
 
             if (!result.Succeeded)
             {
-                if (imagePath != null && System.IO.File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/'))))
+                // Cleanup the uploaded file if user creation fails
+                if (imagePath != null)
                 {
-                    System.IO.File.Delete(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", imagePath.TrimStart('/')));
+                    var fullPath = Path.Combine(_webHostEnvironment.WebRootPath, "images", imagePath.TrimStart('/'));
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        System.IO.File.Delete(fullPath);
+                    }
                 }
                 return BadRequest(result.Errors);
             }
@@ -144,6 +154,44 @@ namespace growmesh_API.Controllers
             );
 
             return token;
+        }
+
+        private string UploadedFile(RegisterDTO model)
+        {
+            string uniqueFileName = null;
+
+            if (model.ProfilePicture != null)
+            {
+                // Validate file type and size
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+                var extension = Path.GetExtension(model.ProfilePicture.FileName).ToLower();
+                if (!allowedExtensions.Contains(extension))
+                {
+                    throw new Exception("Invalid file type. Only JPG, JPEG, and PNG are allowed.");
+                }
+                if (model.ProfilePicture.Length > 5 * 1024 * 1024) // 5MB limit
+                {
+                    throw new Exception("File size exceeds 5MB.");
+                }
+
+                string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images");
+                uniqueFileName = Guid.NewGuid().ToString() + "_" + model.ProfilePicture.FileName;
+                string filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+                if (!Directory.Exists(uploadsFolder))
+                {
+                    Directory.CreateDirectory(uploadsFolder);
+                }
+
+                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                {
+                    model.ProfilePicture.CopyTo(fileStream);
+                }
+
+                uniqueFileName = $"/images/{uniqueFileName}";
+            }
+
+            return uniqueFileName;
         }
     }
 }

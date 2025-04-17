@@ -31,5 +31,7 @@ namespace growmesh_API.DTOs.RequestDTOs
 
         [Range(1, int.MaxValue, ErrorMessage = "Custom deposit interval must be at least 1 day")]
         public int? CustomDepositIntervalDays { get; set; }
+
+        public string? Emoji { get; set; }
     }
 }
