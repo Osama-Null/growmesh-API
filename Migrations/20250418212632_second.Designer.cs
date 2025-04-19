@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using growmesh_API.Data;
 
@@ -11,9 +12,11 @@ using growmesh_API.Data;
 namespace growmesh_API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250418212632_second")]
+    partial class second
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -376,6 +379,7 @@ namespace growmesh_API.Migrations
                         .HasColumnType("int");
 
                     b.Property<int?>("SavingsGoalId")
+                        .IsRequired()
                         .HasColumnType("int");
 
                     b.Property<int?>("SavingsGoalId1")
@@ -493,7 +497,8 @@ namespace growmesh_API.Migrations
                     b.HasOne("growmesh_API.Models.SavingsGoal", "SavingsGoal")
                         .WithMany()
                         .HasForeignKey("SavingsGoalId")
-                        .OnDelete(DeleteBehavior.NoAction);
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
 
                     b.HasOne("growmesh_API.Models.SavingsGoal", null)
                         .WithMany("Transactions")

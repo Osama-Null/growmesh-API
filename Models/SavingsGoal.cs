@@ -50,6 +50,21 @@ namespace growmesh_API.Models
         public BankAccount? BankAccount { get; set; }
 
         public List<Request> Requests { get; set; } = new List<Request>();
+        public List<Transaction> Transactions { get; set; } = new List<Transaction>();
+
+        // ------------- For Chart new -------------
+        [DataType(DataType.DateTime)]
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // Goal creation date
+
+        [DataType(DataType.DateTime)]
+        public DateTime? CompletedAt { get; set; } // Goal completion date, nullable
+
+        public bool InitialManualPayment { get; set; } = false; // Option for initial manual payment
+        public bool InitialAutomaticPayment { get; set; } = false; // Option for initial automatic payment
+
+        // ------------- New field for soft delete -------------
+        [DataType(DataType.DateTime)]
+        public DateTime? DeletedAt { get; set; }
     }
     // ----------------------- Enums -----------------------
     public enum LockType
@@ -61,6 +76,7 @@ namespace growmesh_API.Models
     public enum SavingsGoalStatus
     {
         InProgress,
+        MarkDone,
         Completed,
         Unlocked
     }
@@ -79,18 +95,14 @@ namespace growmesh_API.Models
         {
             if (value == null)
             {
-                return ValidationResult.Success;
+                return ValidationResult.Success; // Nullable, so null is valid
             }
 
-            if (value is DateTime date)
+            if (value is DateTime date && date <= DateTime.UtcNow)
             {
-                if (date <= DateTime.Now)
-                {
-                    return new ValidationResult(ErrorMessage ?? "Target date must be in the future");
-                }
-                return ValidationResult.Success;
+                return new ValidationResult(ErrorMessage ?? "Target date must be in the future");
             }
-            return new ValidationResult("Invalid date format");
+            return ValidationResult.Success;
         }
     }
 }

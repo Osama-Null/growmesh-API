@@ -50,7 +50,7 @@ namespace growmesh_API.Controllers
                 Type = requestDto.Type,
                 WithdrawalAmount = requestDto.WithdrawalAmount,
                 Reason = requestDto.Reason,
-                RequestDate = DateTime.Now,
+                RequestDate = DateTime.UtcNow,
                 SavingsGoalId = requestDto.SavingsGoalId
             };
 
@@ -60,26 +60,13 @@ namespace growmesh_API.Controllers
                 case RequestType.Unlock:
                     savingsGoal.Status = SavingsGoalStatus.Unlocked;
 
-                    // Check if the savings goal is completed after unlocking
-                    bool isCompleted = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.Now) ||
-                                       (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
+                    // Check if the savings goal should be marked as done
+                    bool shouldMarkDone = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.UtcNow) ||
+                          (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
 
-                    if (isCompleted && savingsGoal.CurrentAmount > 0)
+                    if (shouldMarkDone)
                     {
-                        var amountToTransfer = savingsGoal.CurrentAmount;
-                        bankAccount.Balance += amountToTransfer;
-                        savingsGoal.CurrentAmount = 0;
-                        savingsGoal.Status = SavingsGoalStatus.Completed;
-
-                        var transaction = new Transaction
-                        {
-                            Amount = amountToTransfer,
-                            TransactionDate = DateTime.Now,
-                            Type = TransactionType.TransferFromGoal,
-                            BankAccountId = bankAccount.BankAccountId,
-                            SavingsGoalId = savingsGoal.SavingsGoalId
-                        };
-                        _context.Transactions.Add(transaction);
+                        savingsGoal.Status = SavingsGoalStatus.MarkDone;
                     }
                     break;
 
@@ -97,7 +84,7 @@ namespace growmesh_API.Controllers
                     var withdrawalTransaction = new Transaction
                     {
                         Amount = request.WithdrawalAmount.Value,
-                        TransactionDate = DateTime.Now,
+                        TransactionDate = DateTime.UtcNow,
                         Type = TransactionType.TransferFromGoal,
                         BankAccountId = bankAccount.BankAccountId,
                         SavingsGoalId = savingsGoal.SavingsGoalId
@@ -106,14 +93,9 @@ namespace growmesh_API.Controllers
                     break;
 
                 case RequestType.DeleteGoal:
-                    // Update related transactions to set SavingsGoalId to null
-                    var transactions = await _context.Transactions
-                        .Where(t => t.SavingsGoalId == savingsGoal.SavingsGoalId)
-                        .ToListAsync();
-                    foreach (var transaction in transactions)
-                    {
-                        transaction.SavingsGoalId = null;
-                    }
+                    // Mark the goal as deleted instead of removing it
+                    savingsGoal.DeletedAt = DateTime.UtcNow;
+                    savingsGoal.Status = SavingsGoalStatus.Completed; // Mark as completed to stop further deposits
 
                     // Transfer remaining balance back to bank account
                     if (savingsGoal.CurrentAmount > 0)
@@ -123,15 +105,15 @@ namespace growmesh_API.Controllers
                         var transferBackTransaction = new Transaction
                         {
                             Amount = savingsGoal.CurrentAmount,
-                            TransactionDate = DateTime.Now,
+                            TransactionDate = DateTime.UtcNow,
                             Type = TransactionType.TransferFromGoal,
                             BankAccountId = bankAccount.BankAccountId,
                             SavingsGoalId = savingsGoal.SavingsGoalId
                         };
                         _context.Transactions.Add(transferBackTransaction);
-                    }
 
-                    _context.SavingsGoals.Remove(savingsGoal);
+                        savingsGoal.CurrentAmount = 0;
+                    }
                     break;
 
                 default:
@@ -159,6 +141,7 @@ namespace growmesh_API.Controllers
             if (bankAccount == null) return NotFound("Bank account not found");
 
             var requests = bankAccount.SavingsGoals
+                .Where(sg => sg.DeletedAt == null)
                 .SelectMany(sg => sg.Requests)
                 .Select(r => new RequestResponseDTO
                 {

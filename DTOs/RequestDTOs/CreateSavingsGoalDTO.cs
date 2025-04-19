@@ -33,5 +33,25 @@ namespace growmesh_API.DTOs.RequestDTOs
         public int? CustomDepositIntervalDays { get; set; }
 
         public string? Emoji { get; set; }
+
+        // New fields for initial payment options
+        public bool InitialManualPayment { get; set; } = false;
+        public bool InitialAutomaticPayment { get; set; } = false;
+
+        [Range(0.01, double.MaxValue, ErrorMessage = "Initial manual payment amount must be greater than zero")]
+        public decimal? InitialManualPaymentAmount { get; set; }
+
+        public class LockTypeTargetDateValidationAttribute : ValidationAttribute
+        {
+            protected override ValidationResult IsValid(object value, ValidationContext validationContext)
+            {
+                var dto = (CreateSavingsGoalDTO)validationContext.ObjectInstance;
+                if (dto.LockType == LockType.TimeBased && !dto.TargetDate.HasValue)
+                    return new ValidationResult("Target date is required for TimeBased goals");
+                if (dto.LockType == LockType.AmountBased && dto.TargetDate.HasValue)
+                    return new ValidationResult("Target date should not be provided for AmountBased goals");
+                return ValidationResult.Success;
+            }
+        }
     }
 }

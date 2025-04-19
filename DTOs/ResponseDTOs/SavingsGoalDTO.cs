@@ -17,5 +17,14 @@ namespace growmesh_API.DTOs.ResponseDTOs
         public DepositFrequency? DepositFrequency { get; set; }
         public int? CustomDepositIntervalDays { get; set; }
         public string? Emoji { get; set; }
+
+        // New fields
+        public DateTime CreatedAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public bool InitialManualPayment { get; set; }
+        public bool InitialAutomaticPayment { get; set; }
+
+        // New field
+        public DateTime? DeletedAt { get; set; }
     }
 }

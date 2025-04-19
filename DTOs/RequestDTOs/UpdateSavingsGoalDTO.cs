@@ -26,5 +26,21 @@ namespace growmesh_API.DTOs.RequestDTOs
         [Range(1, int.MaxValue, ErrorMessage = "Custom deposit interval must be at least 1 day")]
         public int? CustomDepositIntervalDays { get; set; }
         public string? Emoji { get; set; }
+
+        public class LockTypeTargetDateValidationAttribute : ValidationAttribute
+        {
+            protected override ValidationResult IsValid(object value, ValidationContext validationContext)
+            {
+                var dto = (UpdateSavingsGoalDTO)validationContext.ObjectInstance;
+                if (dto.LockType.HasValue)
+                {
+                    if (dto.LockType == Models.LockType.TimeBased && !dto.TargetDate.HasValue)
+                        return new ValidationResult("Target date is required for TimeBased goals");
+                    if (dto.LockType == Models.LockType.AmountBased && dto.TargetDate.HasValue)
+                        return new ValidationResult("Target date should not be provided for AmountBased goals");
+                }
+                return ValidationResult.Success;
+            }
+        }
     }
 }

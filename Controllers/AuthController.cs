@@ -66,7 +66,6 @@ namespace growmesh_API.Controllers
             {
                 return BadRequest(ModelState);
             }
-            // string imagePath = null
 
             //if (model.ProfilePicture != null)
             //{
@@ -85,7 +84,16 @@ namespace growmesh_API.Controllers
             //    }
             //    imagePath = $"/images/{fileName}";
             //}
-            string imagePath = UploadedFile(model);
+            string imagePath = null;
+
+            try
+            {
+                imagePath = UploadedFile(model);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Errors = new[] { $"Failed to upload profile picture: {ex.Message}" } });
+            }
 
             var user = new ApplicationUser
             {
@@ -148,7 +156,7 @@ namespace growmesh_API.Controllers
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
-                expires: DateTime.Now.AddHours(3),
+                expires: DateTime.UtcNow.AddHours(3),
                 claims: claims,
                 signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
             );
@@ -158,40 +166,35 @@ namespace growmesh_API.Controllers
 
         private string UploadedFile(RegisterDTO model)
         {
-            string uniqueFileName = null;
+            if (model.ProfilePicture == null)
+                return null;
 
-            if (model.ProfilePicture != null)
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+            var extension = Path.GetExtension(model.ProfilePicture.FileName).ToLower();
+            if (!allowedExtensions.Contains(extension))
             {
-                // Validate file type and size
-                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
-                var extension = Path.GetExtension(model.ProfilePicture.FileName).ToLower();
-                if (!allowedExtensions.Contains(extension))
-                {
-                    throw new Exception("Invalid file type. Only JPG, JPEG, and PNG are allowed.");
-                }
-                if (model.ProfilePicture.Length > 5 * 1024 * 1024) // 5MB limit
-                {
-                    throw new Exception("File size exceeds 5MB.");
-                }
-
-                string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images");
-                uniqueFileName = Guid.NewGuid().ToString() + "_" + model.ProfilePicture.FileName;
-                string filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                if (!Directory.Exists(uploadsFolder))
-                {
-                    Directory.CreateDirectory(uploadsFolder);
-                }
-
-                using (var fileStream = new FileStream(filePath, FileMode.Create))
-                {
-                    model.ProfilePicture.CopyTo(fileStream);
-                }
-
-                uniqueFileName = $"/images/{uniqueFileName}";
+                throw new Exception("Invalid file type. Only JPG, JPEG, and PNG are allowed.");
+            }
+            if (model.ProfilePicture.Length > 5 * 1024 * 1024) // 5MB limit
+            {
+                throw new Exception("File size exceeds 5MB.");
             }
 
-            return uniqueFileName;
+            string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images");
+            string uniqueFileName = Guid.NewGuid().ToString() + "_" + model.ProfilePicture.FileName;
+            string filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+
+            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                model.ProfilePicture.CopyTo(fileStream);
+            }
+
+            return $"/images/{uniqueFileName}";
         }
     }
 }

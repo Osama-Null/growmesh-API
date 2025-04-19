@@ -47,7 +47,16 @@ namespace growmesh_API.Controllers
                     Description = sg.Description,
                     LockType = sg.LockType,
                     Status = sg.Status,
-                    BankAccountId = sg.BankAccountId
+                    BankAccountId = sg.BankAccountId,
+                    DepositAmount = sg.DepositAmount,
+                    DepositFrequency = sg.DepositFrequency,
+                    CustomDepositIntervalDays = sg.CustomDepositIntervalDays,
+                    Emoji = sg.Emoji,
+                    CreatedAt = sg.CreatedAt,
+                    CompletedAt = sg.CompletedAt,
+                    InitialManualPayment = sg.InitialManualPayment,
+                    InitialAutomaticPayment = sg.InitialAutomaticPayment,
+                    DeletedAt = sg.DeletedAt
                 }).ToList(),
                 UserId = bankAccount.UserId
             };
@@ -69,6 +78,16 @@ namespace growmesh_API.Controllers
             if (bankAccount == null) return NotFound("Bank account not found");
 
             bankAccount.Balance += amount;
+
+            var transaction = new Transaction
+            {
+                Amount = amount,
+                TransactionDate = DateTime.UtcNow,
+                Type = TransactionType.Deposit,
+                BankAccountId = bankAccount.BankAccountId,
+                SavingsGoalId = null
+            };
+            _context.Transactions.Add(transaction);
 
             await _context.SaveChangesAsync();
 

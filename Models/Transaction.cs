@@ -10,7 +10,7 @@ namespace growmesh_API.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal Amount { get; set; }
 
-        public DateTime TransactionDate { get; set; } = DateTime.Now;
+        public DateTime TransactionDate { get; set; } = DateTime.UtcNow;
 
         [Required]
         public TransactionType Type { get; set; }
@@ -20,7 +20,6 @@ namespace growmesh_API.Models
         public int BankAccountId { get; set; }
         public BankAccount? BankAccount { get; set; }
 
-        [Required]
         [ForeignKey("SavingsGoal")]
         public int? SavingsGoalId { get; set; }
         public SavingsGoal? SavingsGoal { get; set; }

@@ -15,7 +15,7 @@ namespace growmesh_API.Models
 
         [Required]
         [DataType(DataType.Date)]
-        public DateTime RequestDate { get; set; } = DateTime.Now;
+        public DateTime RequestDate { get; set; } = DateTime.UtcNow;
 
         [StringLength(500, ErrorMessage = "Reason cannot exceed 500 characters.")]
         public string? Reason { get; set; }

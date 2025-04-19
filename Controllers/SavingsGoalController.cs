@@ -32,20 +32,13 @@ namespace growmesh_API.Controllers
 
             var bankAccount = await _context.BankAccounts
                 .FirstOrDefaultAsync(ba => ba.UserId == userId);
-
             if (bankAccount == null) return NotFound("Bank account not found");
 
             if (model.LockType == LockType.TimeBased && !model.TargetDate.HasValue)
-            {
-                ModelState.AddModelError("TargetDate", "Target date is required for TimeBased goals");
-                return BadRequest(ModelState);
-            }
+                return BadRequest("Target date is required for TimeBased goals");
 
             if (model.LockType == LockType.AmountBased && model.TargetDate.HasValue)
-            {
-                ModelState.AddModelError("TargetDate", "Target date should not be provided for AmountBased goals");
-                return BadRequest(ModelState);
-            }
+                return BadRequest("Target date should not be provided for AmountBased goals");
 
             if (model.DepositAmount.HasValue || model.DepositFrequency.HasValue)
             {
@@ -55,9 +48,19 @@ namespace growmesh_API.Controllers
                 if (!model.DepositFrequency.HasValue)
                     return BadRequest("Deposit frequency is required if automatic deposits are enabled");
 
-                if (model.DepositFrequency == DepositFrequency.Custom && (!model.CustomDepositIntervalDays.HasValue || model.CustomDepositIntervalDays <= 0))
+                if (model.DepositFrequency == DepositFrequency.Custom &&
+                    (!model.CustomDepositIntervalDays.HasValue || model.CustomDepositIntervalDays <= 0))
                     return BadRequest("Custom deposit interval must be specified and greater than zero for Custom frequency");
             }
+
+            if (model.InitialManualPayment && model.InitialAutomaticPayment)
+                return BadRequest("Cannot select both initial manual and automatic payment");
+
+            if (model.InitialAutomaticPayment && !model.DepositAmount.HasValue)
+                return BadRequest("Deposit amount is required for initial automatic payment");
+
+            if (model.InitialManualPayment && !model.InitialManualPaymentAmount.HasValue)
+                return BadRequest("Initial manual payment amount is required if manual payment is selected");
 
             var savingsGoal = new SavingsGoal
             {
@@ -72,11 +75,76 @@ namespace growmesh_API.Controllers
                 DepositAmount = model.DepositAmount,
                 DepositFrequency = model.DepositFrequency,
                 CustomDepositIntervalDays = model.DepositFrequency == DepositFrequency.Custom ? model.CustomDepositIntervalDays : null,
-                LastDepositDate = (model.DepositAmount.HasValue && model.DepositFrequency.HasValue) ? DateTime.Now : null, // Set initial deposit date if automatic deposits are enabled
-                Emoji = model.Emoji
+                LastDepositDate = (model.DepositAmount.HasValue && model.DepositFrequency.HasValue) ? DateTime.UtcNow : null,
+                Emoji = model.Emoji,
+                CreatedAt = DateTime.UtcNow,
+                InitialManualPayment = model.InitialManualPayment,
+                InitialAutomaticPayment = model.InitialAutomaticPayment
             };
 
             _context.SavingsGoals.Add(savingsGoal);
+            await _context.SaveChangesAsync();
+
+            // Handle initial manual payment
+            if (model.InitialManualPayment && model.InitialManualPaymentAmount.HasValue)
+            {
+                var amount = model.InitialManualPaymentAmount.Value;
+
+                if (savingsGoal.LockType == LockType.AmountBased && amount > savingsGoal.TargetAmount)
+                    amount = savingsGoal.TargetAmount;
+
+                if (bankAccount.Balance >= amount)
+                {
+                    bankAccount.Balance -= amount;
+                    savingsGoal.CurrentAmount += amount;
+
+                    var transaction = new Transaction
+                    {
+                        Amount = amount,
+                        TransactionDate = DateTime.UtcNow,
+                        Type = TransactionType.TransferToGoal,
+                        BankAccountId = bankAccount.BankAccountId,
+                        SavingsGoalId = savingsGoal.SavingsGoalId
+                    };
+
+                    _context.Transactions.Add(transaction);
+                }
+                else
+                {
+                    return BadRequest("Insufficient funds for initial manual deposit");
+                }
+            }
+
+            // Handle initial automatic payment
+            if (model.InitialAutomaticPayment && model.DepositAmount.HasValue)
+            {
+                var amount = model.DepositAmount.Value;
+
+                if (savingsGoal.LockType == LockType.AmountBased && amount > savingsGoal.TargetAmount)
+                    amount = savingsGoal.TargetAmount;
+
+                if (bankAccount.Balance >= amount)
+                {
+                    bankAccount.Balance -= amount;
+                    savingsGoal.CurrentAmount += amount;
+
+                    var transaction = new Transaction
+                    {
+                        Amount = amount,
+                        TransactionDate = DateTime.UtcNow,
+                        Type = TransactionType.TransferToGoal,
+                        BankAccountId = bankAccount.BankAccountId,
+                        SavingsGoalId = savingsGoal.SavingsGoalId
+                    };
+
+                    _context.Transactions.Add(transaction);
+                }
+                else
+                {
+                    return BadRequest("Insufficient funds for initial automatic deposit");
+                }
+            }
+
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetSavingsGoal), new { id = savingsGoal.SavingsGoalId }, new SavingsGoalDTO
@@ -93,7 +161,11 @@ namespace growmesh_API.Controllers
                 DepositAmount = savingsGoal.DepositAmount,
                 DepositFrequency = savingsGoal.DepositFrequency,
                 CustomDepositIntervalDays = savingsGoal.CustomDepositIntervalDays,
-                Emoji = savingsGoal.Emoji
+                Emoji = savingsGoal.Emoji,
+                CreatedAt = savingsGoal.CreatedAt,
+                CompletedAt = savingsGoal.CompletedAt,
+                InitialManualPayment = savingsGoal.InitialManualPayment,
+                InitialAutomaticPayment = savingsGoal.InitialAutomaticPayment
             });
         }
 
@@ -110,19 +182,26 @@ namespace growmesh_API.Controllers
 
             if (bankAccount == null) return NotFound("Bank account not found");
 
-            var savingsGoals = bankAccount.SavingsGoals.Select(sg => new SavingsGoalDTO
+            var savingsGoals = bankAccount.SavingsGoals
+                .Where(sg => sg.DeletedAt == null)
+                .Select(sg => new SavingsGoalDTO
             {
-                SavingsGoalId = sg.SavingsGoalId,
-                SavingsGoalName = sg.SavingsGoalName,
-                TargetAmount = sg.TargetAmount,
-                CurrentAmount = sg.CurrentAmount,
-                TargetDate = sg.TargetDate,
-                Description = sg.Description,
-                LockType = sg.LockType,
-                Status = sg.Status,
-                BankAccountId = sg.BankAccountId,
-                Emoji = sg.Emoji
-            }).ToList();
+                    SavingsGoalId = sg.SavingsGoalId,
+                    SavingsGoalName = sg.SavingsGoalName,
+                    TargetAmount = sg.TargetAmount,
+                    CurrentAmount = sg.CurrentAmount,
+                    TargetDate = sg.TargetDate,
+                    Description = sg.Description,
+                    LockType = sg.LockType,
+                    Status = sg.Status,
+                    BankAccountId = sg.BankAccountId,
+                    Emoji = sg.Emoji,
+                    CreatedAt = sg.CreatedAt,
+                    CompletedAt = sg.CompletedAt,
+                    InitialManualPayment = sg.InitialManualPayment,
+                    InitialAutomaticPayment = sg.InitialAutomaticPayment,
+                    DeletedAt = sg.DeletedAt
+                }).ToList();
 
             return savingsGoals;
         }
@@ -170,6 +249,9 @@ namespace growmesh_API.Controllers
 
             if (savingsGoal == null) return NotFound("Savings goal not found");
 
+            if (savingsGoal.Status == SavingsGoalStatus.Completed || savingsGoal.Status == SavingsGoalStatus.MarkDone)
+                return BadRequest("Cannot update a completed or marked-done savings goal");
+
             if (savingsGoal.Status == SavingsGoalStatus.Completed)
                 return BadRequest("Cannot update a completed savings goal");
 
@@ -180,6 +262,15 @@ namespace growmesh_API.Controllers
                 if (model.TargetAmount.Value < savingsGoal.CurrentAmount)
                     return BadRequest("Target amount cannot be less than the current amount");
                 savingsGoal.TargetAmount = model.TargetAmount.Value;
+            }
+
+            if (model.LockType.HasValue)
+            {
+                savingsGoal.LockType = model.LockType.Value;
+                if (savingsGoal.LockType == LockType.TimeBased && !savingsGoal.TargetDate.HasValue)
+                    return BadRequest("Target date is required for TimeBased goals");
+                if (savingsGoal.LockType == LockType.AmountBased && savingsGoal.TargetDate.HasValue)
+                    return BadRequest("Target date should not be provided for AmountBased goals");
             }
 
             if (model.SavingsGoalName != null) savingsGoal.SavingsGoalName = model.SavingsGoalName;
@@ -207,7 +298,7 @@ namespace growmesh_API.Controllers
                 savingsGoal.DepositAmount = model.DepositAmount.Value;
                 savingsGoal.DepositFrequency = model.DepositFrequency.Value;
                 savingsGoal.CustomDepositIntervalDays = model.DepositFrequency == DepositFrequency.Custom ? model.CustomDepositIntervalDays : null;
-                savingsGoal.LastDepositDate = DateTime.Now; // Reset LastDepositDate if automatic deposits are enabled
+                savingsGoal.LastDepositDate = DateTime.UtcNow; // Reset LastDepositDate if automatic deposits are enabled
             }
             else if (model.DepositAmount == null && model.DepositFrequency == null)
             {
@@ -261,14 +352,9 @@ namespace growmesh_API.Controllers
 
             if (savingsGoal == null) return NotFound("Savings goal not found");
 
-            // Update related transactions to set SavingsGoalId to null
-            var transactions = await _context.Transactions
-                .Where(t => t.SavingsGoalId == savingsGoal.SavingsGoalId)
-                .ToListAsync();
-            foreach (var transaction in transactions)
-            {
-                transaction.SavingsGoalId = null;
-            }
+            // Mark the goal as deleted instead of removing it
+            savingsGoal.DeletedAt = DateTime.UtcNow;
+            savingsGoal.Status = SavingsGoalStatus.Completed;
 
             // Transfer remaining balance back to bank account
             if (savingsGoal.CurrentAmount > 0)
@@ -283,21 +369,23 @@ namespace growmesh_API.Controllers
                     var transferBackTransaction = new Transaction
                     {
                         Amount = savingsGoal.CurrentAmount,
-                        TransactionDate = DateTime.Now,
+                        TransactionDate = DateTime.UtcNow,
                         Type = TransactionType.TransferFromGoal,
                         BankAccountId = bankAccount.BankAccountId,
                         SavingsGoalId = savingsGoal.SavingsGoalId
                     };
                     _context.Transactions.Add(transferBackTransaction);
+
+                    savingsGoal.CurrentAmount = 0;
                 }
             }
 
-            _context.SavingsGoals.Remove(savingsGoal);
             await _context.SaveChangesAsync();
 
             return Ok(new { success = true, message = "Savings goal deleted successfully" });
         }
 
+        // POST: api/SavingsGoal/deposit/{id}
         // POST: api/SavingsGoal/deposit/{id}
         [HttpPost("deposit/{id}")]
         public async Task<IActionResult> Deposit(int id, [FromBody] TransferAmountDTO transferDto)
@@ -319,6 +407,9 @@ namespace growmesh_API.Controllers
             if (savingsGoal.Status == SavingsGoalStatus.Completed)
                 return BadRequest("Cannot deposit into a completed savings goal");
 
+            if (savingsGoal.Status == SavingsGoalStatus.MarkDone)
+                return BadRequest("Cannot deposit into a savings goal that has reached its target (MarkDone). Please mark the goal as done to transfer funds to your balance.");
+
             var bankAccount = savingsGoal.BankAccount;
             if (bankAccount.Balance < amount) return BadRequest("Insufficient funds in bank account");
 
@@ -326,12 +417,12 @@ namespace growmesh_API.Controllers
             savingsGoal.CurrentAmount += amount;
 
             if (savingsGoal.LockType == LockType.TimeBased)
-                savingsGoal.LastDepositDate = DateTime.Now;
+                savingsGoal.LastDepositDate = DateTime.UtcNow;
 
             var transaction = new Transaction
             {
                 Amount = amount,
-                TransactionDate = DateTime.Now,
+                TransactionDate = DateTime.UtcNow,
                 Type = TransactionType.TransferToGoal,
                 BankAccountId = bankAccount.BankAccountId,
                 SavingsGoalId = savingsGoal.SavingsGoalId
@@ -339,26 +430,13 @@ namespace growmesh_API.Controllers
 
             _context.Transactions.Add(transaction);
 
-            // If completed
-            bool isCompleted = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.Now) ||
-                               (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
+            // Check if the goal should be marked as done
+            bool shouldMarkDone = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.UtcNow) ||
+                                  (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
 
-            if (isCompleted && savingsGoal.Status == SavingsGoalStatus.Unlocked && savingsGoal.CurrentAmount > 0)
+            if (shouldMarkDone)
             {
-                var amountToTransfer = savingsGoal.CurrentAmount;
-                bankAccount.Balance += amountToTransfer;
-                savingsGoal.CurrentAmount = 0;
-                savingsGoal.Status = SavingsGoalStatus.Completed;
-
-                var transferBackTransaction = new Transaction
-                {
-                    Amount = amountToTransfer,
-                    TransactionDate = DateTime.Now,
-                    Type = TransactionType.TransferFromGoal,
-                    BankAccountId = bankAccount.BankAccountId,
-                    SavingsGoalId = savingsGoal.SavingsGoalId
-                };
-                _context.Transactions.Add(transferBackTransaction);
+                savingsGoal.Status = SavingsGoalStatus.MarkDone;
             }
 
             await _context.SaveChangesAsync();
@@ -384,6 +462,9 @@ namespace growmesh_API.Controllers
 
             if (savingsGoal == null) return NotFound("Savings goal not found");
 
+            if (savingsGoal.Status == SavingsGoalStatus.Completed || savingsGoal.Status == SavingsGoalStatus.MarkDone)
+                return BadRequest("Cannot withdraw from a completed or marked-done savings goal");
+
             if (savingsGoal.Status == SavingsGoalStatus.Completed)
                 return BadRequest("Cannot withdraw from a completed savings goal");
 
@@ -396,7 +477,7 @@ namespace growmesh_API.Controllers
             var transaction = new Transaction
             {
                 Amount = amount,
-                TransactionDate = DateTime.Now,
+                TransactionDate = DateTime.UtcNow,
                 Type = TransactionType.TransferFromGoal,
                 BankAccountId = bankAccount.BankAccountId,
                 SavingsGoalId = savingsGoal.SavingsGoalId
@@ -429,23 +510,160 @@ namespace growmesh_API.Controllers
 
             savingsGoal.Status = SavingsGoalStatus.Unlocked;
 
-            // Check if the savings goal is completed after unlocking
-            bool isCompleted = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.Now) ||
-                               (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
+            // Check if the savings goal should be marked as done
+            bool shouldMarkDone = (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate <= DateTime.UtcNow) ||
+                                  (savingsGoal.LockType == LockType.AmountBased && savingsGoal.CurrentAmount >= savingsGoal.TargetAmount);
 
-            if (isCompleted && savingsGoal.CurrentAmount > 0)
+            if (shouldMarkDone)
+            {
+                savingsGoal.Status = SavingsGoalStatus.MarkDone;
+            }
+            else
+            {
+                // Transfer funds to balance if not transitioning to MarkDone
+                if (savingsGoal.CurrentAmount > 0)
+                {
+                    var bankAccount = savingsGoal.BankAccount;
+                    var amountToTransfer = savingsGoal.CurrentAmount;
+
+                    bankAccount.Balance += amountToTransfer;
+                    savingsGoal.CurrentAmount = 0;
+
+                    var transaction = new Transaction
+                    {
+                        Amount = amountToTransfer,
+                        TransactionDate = DateTime.UtcNow,
+                        Type = TransactionType.TransferFromGoal,
+                        BankAccountId = bankAccount.BankAccountId,
+                        SavingsGoalId = savingsGoal.SavingsGoalId
+                    };
+
+                    _context.Transactions.Add(transaction);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Savings goal unlocked successfully" });
+        }
+
+        // GET: api/SavingsGoal/get-savings-trend/
+        [HttpGet("get-savings-trend")]
+        public async Task<ActionResult<IEnumerable<SavingsTrendDTO>>> GetSavingsTrend([FromQuery] string periodType, [FromQuery] int periods = 7)
+        {
+            // Validate input parameters
+            if (periods <= 0) return BadRequest("Periods must be greater than zero");
+
+            var validPeriodTypes = new[] { "day", "month", "year" };
+            if (!validPeriodTypes.Contains(periodType.ToLower()))
+                return BadRequest("Invalid period type. Use 'day', 'month', or 'year'");
+
+            // Verify user authentication
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            // Fetch bank account with savings goals and transactions
+            var bankAccount = await _context.BankAccounts
+                .Include(ba => ba.SavingsGoals)
+                .ThenInclude(sg => sg.Transactions)
+                .FirstOrDefaultAsync(ba => ba.UserId == userId);
+            if (bankAccount == null) return NotFound("Bank account not found");
+
+            var trendData = new List<SavingsTrendDTO>();
+            var now = DateTime.UtcNow;
+
+            // Calculate savings for each period
+            for (int i = periods - 1; i >= 0; i--)
+            {
+                DateTime periodEnd;
+                switch (periodType.ToLower())
+                {
+                    case "day":
+                        periodEnd = now.Date.AddDays(-i);
+                        break;
+                    case "month":
+                        periodEnd = now.Date.AddMonths(-i).AddDays(-now.Day + 1).AddMonths(1).AddDays(-1);
+                        break;
+                    case "year":
+                        periodEnd = now.Date.AddYears(-i).AddDays(-now.DayOfYear + 1).AddYears(1).AddDays(-1);
+                        break;
+                    default:
+                        return BadRequest("Invalid period type");
+                }
+
+                decimal totalSavings = 0;
+
+                foreach (var goal in bankAccount.SavingsGoals)
+                {
+                    // Skip goals created after the period, completed before it, or deleted before it
+                    if (goal.CreatedAt > periodEnd ||
+                        (goal.CompletedAt.HasValue && goal.CompletedAt < periodEnd) ||
+                        (goal.DeletedAt.HasValue && goal.DeletedAt < periodEnd))
+                        continue;
+
+                    // Calculate net savings up to period end
+                    var transactionsBeforePeriod = goal.Transactions
+                        .Where(t => t.TransactionDate <= periodEnd &&
+                                    (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
+                        .ToList();
+
+                    decimal amountAtPeriodEnd = transactionsBeforePeriod
+                        .Sum(t => t.Type == TransactionType.TransferToGoal ? t.Amount : -t.Amount);
+
+                    totalSavings += Math.Max(0, amountAtPeriodEnd);
+                }
+
+                trendData.Add(new SavingsTrendDTO
+                {
+                    PeriodEnd = periodEnd,
+                    TotalSavings = totalSavings,
+                    Difference = 0
+                });
+            }
+
+            // Calculate differences between periods
+            for (int i = 1; i < trendData.Count; i++)
+            {
+                trendData[i].Difference = trendData[i].TotalSavings - trendData[i - 1].TotalSavings;
+            }
+            if (trendData.Count > 0)
+                trendData[0].Difference = 0;
+
+            return Ok(trendData);
+        }
+
+        // POST: api/SavingsGoal/mark-as-done/{id}
+        [HttpPost("mark-as-done/{id}")]
+        public async Task<IActionResult> MarkAsDone(int id)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var savingsGoal = await _context.SavingsGoals
+                .Include(sg => sg.BankAccount)
+                .FirstOrDefaultAsync(sg => sg.SavingsGoalId == id && sg.BankAccount.UserId == userId);
+
+            if (savingsGoal == null) return NotFound("Savings goal not found");
+
+            if (savingsGoal.Status != SavingsGoalStatus.MarkDone)
+                return BadRequest("Savings goal must be in MarkDone status to be completed");
+
+            if (savingsGoal.DeletedAt.HasValue)
+                return BadRequest("Cannot mark a deleted savings goal as done");
+
+            // Transfer remaining balance to bank account
+            if (savingsGoal.CurrentAmount > 0)
             {
                 var bankAccount = savingsGoal.BankAccount;
                 var amountToTransfer = savingsGoal.CurrentAmount;
 
                 bankAccount.Balance += amountToTransfer;
                 savingsGoal.CurrentAmount = 0;
-                savingsGoal.Status = SavingsGoalStatus.Completed;
 
                 var transaction = new Transaction
                 {
                     Amount = amountToTransfer,
-                    TransactionDate = DateTime.Now,
+                    TransactionDate = DateTime.UtcNow,
                     Type = TransactionType.TransferFromGoal,
                     BankAccountId = bankAccount.BankAccountId,
                     SavingsGoalId = savingsGoal.SavingsGoalId
@@ -454,9 +672,12 @@ namespace growmesh_API.Controllers
                 _context.Transactions.Add(transaction);
             }
 
+            savingsGoal.Status = SavingsGoalStatus.Completed;
+            savingsGoal.CompletedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { success = true, message = "Savings goal unlocked successfully" });
+            return Ok(new { success = true, message = "Savings goal marked as done and funds transferred to balance" });
         }
 
         private bool SavingsGoalExists(int id)
