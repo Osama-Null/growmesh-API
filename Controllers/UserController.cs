@@ -99,11 +99,19 @@ namespace growmesh_API.Controllers
                 }
             }
 
-            // Update user fields
-            user.Email = model.Email;
-            user.UserName = model.Email;
-            user.PhoneNumber = model.Phone;
-            user.ProfilePicture = imagePath;
+            // Update user fields only if provided
+            if (!string.IsNullOrEmpty(model.Email))
+            {
+                user.Email = model.Email;
+                user.UserName = model.Email; // Ensure UserName is updated to match Email (Identity requirement)
+            }
+
+            if (!string.IsNullOrEmpty(model.Phone))
+            {
+                user.PhoneNumber = model.Phone;
+            }
+
+            user.ProfilePicture = imagePath; // Update ProfilePicture regardless, since imagePath defaults to the existing value if no new file is uploaded
 
             // Validate the updated user
             var validationResults = new List<ValidationResult>();
@@ -135,6 +143,9 @@ namespace growmesh_API.Controllers
             var updatedUserDto = new UserResponseDTO
             {
                 Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                DateOfBirth = user.DateOfBirth,
                 Phone = user.PhoneNumber,
                 ProfilePicture = user.ProfilePicture
             };

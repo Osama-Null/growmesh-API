@@ -386,7 +386,6 @@ namespace growmesh_API.Controllers
         }
 
         // POST: api/SavingsGoal/deposit/{id}
-        // POST: api/SavingsGoal/deposit/{id}
         [HttpPost("deposit/{id}")]
         public async Task<IActionResult> Deposit(int id, [FromBody] TransferAmountDTO transferDto)
         {
