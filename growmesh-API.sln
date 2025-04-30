@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35919.96 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "growmesh-API", "growmesh-API.csproj", "{60F0241A-4C5C-4F27-907E-91BD2AE6B222}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{60F0241A-4C5C-4F27-907E-91BD2AE6B222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{60F0241A-4C5C-4F27-907E-91BD2AE6B222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{60F0241A-4C5C-4F27-907E-91BD2AE6B222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{60F0241A-4C5C-4F27-907E-91BD2AE6B222}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D58D5642-5234-4F78-976D-72B8B5D509BC}
+	EndGlobalSection
+EndGlobal

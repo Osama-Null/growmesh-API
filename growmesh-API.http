@@ -1,0 +1,6 @@
+@growmesh_API_HostAddress = http://localhost:5076
+
+GET {{growmesh_API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
