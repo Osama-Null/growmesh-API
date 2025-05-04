@@ -42,7 +42,7 @@ namespace growmesh_API.Controllers
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return NotFound("User not found");
 
-            var baseUrl = $"http://{Request.Scheme}://{Request.Host.Value}";
+            var baseUrl = $"{Request.Scheme}://{Request.Host.Value}";
 
             var userDto = new UserResponseDTO
             {

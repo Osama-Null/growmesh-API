@@ -917,22 +917,26 @@ namespace growmesh_API.Controllers
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-            // Fetch bank account with savings goals and transactions
+            // Fetch bank account with savings goals
             var bankAccount = await _context.BankAccounts
                 .Include(ba => ba.SavingsGoals)
-                .ThenInclude(sg => sg.Transactions)
                 .FirstOrDefaultAsync(ba => ba.UserId == userId);
             if (bankAccount == null) return NotFound("Bank account not found");
 
             Console.WriteLine($"Found bank account for user {userId} with {bankAccount.SavingsGoals.Count} savings goals.");
 
-            // Log transaction counts for each goal to verify data loading
+            // Manually load transactions for each savings goal
             foreach (var goal in bankAccount.SavingsGoals)
             {
-                Console.WriteLine($"Goal {goal.SavingsGoalId} (CreatedAt: {goal.CreatedAt}) has {goal.Transactions.Count} transactions.");
-                if (goal.Transactions.Any())
+                var transactions = await _context.Transactions
+                    .Where(t => t.SavingsGoalId == goal.SavingsGoalId &&
+                                (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
+                    .ToListAsync();
+                goal.Transactions = transactions;
+                Console.WriteLine($"Goal {goal.SavingsGoalId} (CreatedAt: {goal.CreatedAt}) has {transactions.Count} transactions.");
+                if (transactions.Any())
                 {
-                    Console.WriteLine($"First transaction: {goal.Transactions.Min(t => t.TransactionDate)}, Last: {goal.Transactions.Max(t => t.TransactionDate)}");
+                    Console.WriteLine($"First transaction: {transactions.Min(t => t.TransactionDate)}, Last: {transactions.Max(t => t.TransactionDate)}");
                 }
             }
 
@@ -1000,8 +1004,7 @@ namespace growmesh_API.Controllers
                     else
                     {
                         var transactionsBeforePeriod = goal.Transactions
-                            .Where(t => DateTime.SpecifyKind(t.TransactionDate, DateTimeKind.Utc) <= periodEnd &&
-                                        (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
+                            .Where(t => DateTime.SpecifyKind(t.TransactionDate, DateTimeKind.Utc) <= periodEnd)
                             .ToList();
 
                         Console.WriteLine($"Goal {goal.SavingsGoalId}, period ending {periodEnd}, found {transactionsBeforePeriod.Count} transactions.");
@@ -1010,7 +1013,7 @@ namespace growmesh_API.Controllers
                             Console.WriteLine($"Transactions range: {transactionsBeforePeriod.Min(t => t.TransactionDate)} to {transactionsBeforePeriod.Max(t => t.TransactionDate)}");
                             foreach (var t in transactionsBeforePeriod)
                             {
-                                Console.WriteLine($"Transaction {t.TransactionId}: Date={t.TransactionDate}, Type={t.Type}, Amount={t.Amount}");
+                                Console.WriteLine($"Transaction {t.TransactionId}: Date={t.TransactionDate}, Type={t.Type}, Amount={t.Amount}, IsUtc={t.TransactionDate.Kind}");
                             }
                         }
 
@@ -1056,22 +1059,31 @@ namespace growmesh_API.Controllers
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
             var savingsGoal = await _context.SavingsGoals
-                .Include(sg => sg.Transactions)
                 .Include(sg => sg.BankAccount)
                 .FirstOrDefaultAsync(sg => sg.SavingsGoalId == id && sg.BankAccount.UserId == userId);
 
             if (savingsGoal == null) return NotFound("Savings goal not found");
 
-            Console.WriteLine($"Found savings goal {savingsGoal.SavingsGoalId} for user {userId}, CreatedAt={savingsGoal.CreatedAt}, Transactions={savingsGoal.Transactions.Count}");
+            // Manually load transactions since navigation property may not be reliable
+            var transactions = await _context.Transactions
+                .Where(t => t.SavingsGoalId == id &&
+                            (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
+                .ToListAsync();
 
-            // Log transaction details
-            if (savingsGoal.Transactions.Any())
+            Console.WriteLine($"Found savings goal {savingsGoal.SavingsGoalId} for user {userId}, CreatedAt={savingsGoal.CreatedAt}, Transactions={transactions.Count}");
+
+            // Log transaction details for debugging
+            if (transactions.Any())
             {
-                Console.WriteLine($"Transaction range: {savingsGoal.Transactions.Min(t => t.TransactionDate)} to {savingsGoal.Transactions.Max(t => t.TransactionDate)}");
-                foreach (var t in savingsGoal.Transactions)
+                Console.WriteLine($"Transaction range: {transactions.Min(t => t.TransactionDate)} to {transactions.Max(t => t.TransactionDate)}");
+                foreach (var t in transactions)
                 {
                     Console.WriteLine($"Transaction {t.TransactionId}: Date={t.TransactionDate}, Type={t.Type}, Amount={t.Amount}");
                 }
+            }
+            else
+            {
+                Console.WriteLine("No transactions found for this goal.");
             }
 
             // Determine period type based on goal type
@@ -1087,21 +1099,22 @@ namespace growmesh_API.Controllers
                 DateTime periodEnd = CalculatePeriodEnd(periodType, now, i, savingsGoal);
                 Console.WriteLine($"Period i={i}, periodEnd={periodEnd}");
 
-                decimal cumulativeSavings = 0;
-
-                // Calculate cumulative savings up to period end
-                var transactionsBeforePeriod = savingsGoal.Transactions
-                    .Where(t => DateTime.SpecifyKind(t.TransactionDate, DateTimeKind.Utc) <= periodEnd &&
-                                (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
+                // Calculate cumulative savings up to period end using manually loaded transactions
+                var transactionsBeforePeriod = transactions
+                    .Where(t => DateTime.SpecifyKind(t.TransactionDate, DateTimeKind.Utc) <= periodEnd)
                     .ToList();
 
                 Console.WriteLine($"Found {transactionsBeforePeriod.Count} transactions before {periodEnd}");
                 if (transactionsBeforePeriod.Any())
                 {
                     Console.WriteLine($"Transactions range: {transactionsBeforePeriod.Min(t => t.TransactionDate)} to {transactionsBeforePeriod.Max(t => t.TransactionDate)}");
+                    foreach (var t in transactionsBeforePeriod)
+                    {
+                        Console.WriteLine($"Transaction {t.TransactionId}: Date={t.TransactionDate}, Type={t.Type}, Amount={t.Amount}, IsUtc={t.TransactionDate.Kind}");
+                    }
                 }
 
-                cumulativeSavings = transactionsBeforePeriod
+                decimal cumulativeSavings = transactionsBeforePeriod
                     .Sum(t => t.Type == TransactionType.TransferToGoal ? t.Amount : -t.Amount);
                 Console.WriteLine($"Calculated cumulativeSavings={cumulativeSavings} for period ending {periodEnd}");
 
@@ -1124,7 +1137,7 @@ namespace growmesh_API.Controllers
                 {
                     PeriodEnd = periodEnd,
                     CumulativeSavings = cumulativeSavings,
-                    Difference = 0,  // Will calculate later
+                    Difference = 0,
                     TargetCumulativeSavings = targetCumulativeSavings
                 });
             }
