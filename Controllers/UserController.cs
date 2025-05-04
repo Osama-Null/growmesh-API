@@ -42,6 +42,8 @@ namespace growmesh_API.Controllers
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return NotFound("User not found");
 
+            var baseUrl = $"http://{Request.Scheme}://{Request.Host.Value}";
+
             var userDto = new UserResponseDTO
             {
                 Email = user.Email,
@@ -49,7 +51,9 @@ namespace growmesh_API.Controllers
                 LastName = user.LastName,
                 DateOfBirth = user.DateOfBirth,
                 Phone = user.PhoneNumber,
-                ProfilePicture = user.ProfilePicture
+                ProfilePicture = string.IsNullOrEmpty(user.ProfilePicture)
+                    ? null 
+                    :$"{baseUrl}{user.ProfilePicture}"
             };
 
             return Ok(userDto);

@@ -901,6 +901,7 @@ namespace growmesh_API.Controllers
             return Ok(new { success = true, message = "Savings goal unlocked successfully" });
         }
 
+        //===============================================================================================================================================================================================
         // GET: api/SavingsGoal/get-savings-trend/
         [HttpGet("get-savings-trend")]
         public async Task<ActionResult<IEnumerable<SavingsTrendDTO>>> GetSavingsTrend([FromQuery] string periodType, [FromQuery] int periods = 7)
@@ -923,6 +924,18 @@ namespace growmesh_API.Controllers
                 .FirstOrDefaultAsync(ba => ba.UserId == userId);
             if (bankAccount == null) return NotFound("Bank account not found");
 
+            Console.WriteLine($"Found bank account for user {userId} with {bankAccount.SavingsGoals.Count} savings goals.");
+
+            // Log transaction counts for each goal to verify data loading
+            foreach (var goal in bankAccount.SavingsGoals)
+            {
+                Console.WriteLine($"Goal {goal.SavingsGoalId} (CreatedAt: {goal.CreatedAt}) has {goal.Transactions.Count} transactions.");
+                if (goal.Transactions.Any())
+                {
+                    Console.WriteLine($"First transaction: {goal.Transactions.Min(t => t.TransactionDate)}, Last: {goal.Transactions.Max(t => t.TransactionDate)}");
+                }
+            }
+
             var trendData = new List<SavingsTrendDTO>();
             var now = DateTime.UtcNow;
 
@@ -933,14 +946,32 @@ namespace growmesh_API.Controllers
                 switch (periodType.ToLower())
                 {
                     case "day":
-                        // For the latest period (i=0), use the current time; for historical periods, use midnight
                         periodEnd = i == 0 ? now : now.Date.AddDays(-i).AddHours(23).AddMinutes(59).AddSeconds(59).AddMilliseconds(999);
+                        Console.WriteLine($"Period type 'day', i={i}, periodEnd={periodEnd}");
                         break;
                     case "month":
-                        periodEnd = i == 0 ? now : now.Date.AddMonths(-i).AddDays(-now.Day + 1).AddMonths(1).AddDays(-1);
+                        if (i == 0)
+                        {
+                            periodEnd = now;
+                        }
+                        else
+                        {
+                            var date = now.AddMonths(-i);
+                            periodEnd = new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month), 23, 59, 59, 999, DateTimeKind.Utc);
+                        }
+                        Console.WriteLine($"Period type 'month', i={i}, periodEnd={periodEnd}");
                         break;
                     case "year":
-                        periodEnd = i == 0 ? now : now.Date.AddYears(-i).AddDays(-now.DayOfYear + 1).AddYears(1).AddDays(-1);
+                        if (i == 0)
+                        {
+                            periodEnd = now;
+                        }
+                        else
+                        {
+                            var date = now.AddYears(-i);
+                            periodEnd = new DateTime(date.Year, 12, 31, 23, 59, 59, 999, DateTimeKind.Utc);
+                        }
+                        Console.WriteLine($"Period type 'year', i={i}, periodEnd={periodEnd}");
                         break;
                     default:
                         return BadRequest("Invalid period type");
@@ -950,30 +981,42 @@ namespace growmesh_API.Controllers
 
                 foreach (var goal in bankAccount.SavingsGoals)
                 {
-                    // Skip goals created after the period, completed before it, or deleted before it
+                    // Skip goals not relevant to this period
                     if (goal.CreatedAt > periodEnd ||
                         (goal.CompletedAt.HasValue && goal.CompletedAt < periodEnd) ||
                         (goal.DeletedAt.HasValue && goal.DeletedAt < periodEnd))
+                    {
+                        Console.WriteLine($"Skipping goal {goal.SavingsGoalId} for period ending {periodEnd}: CreatedAt={goal.CreatedAt}, CompletedAt={goal.CompletedAt}, DeletedAt={goal.DeletedAt}");
                         continue;
+                    }
 
-                    // Calculate net savings up to period end
                     decimal amountAtPeriodEnd;
 
                     if (i == 0)
                     {
-                        // For the latest period, use CurrentAmount directly
                         amountAtPeriodEnd = goal.CurrentAmount;
+                        Console.WriteLine($"Goal {goal.SavingsGoalId}, latest period (i=0), using CurrentAmount={amountAtPeriodEnd}");
                     }
                     else
                     {
-                        // For historical periods, calculate based on transactions
                         var transactionsBeforePeriod = goal.Transactions
-                            .Where(t => t.TransactionDate <= periodEnd &&
+                            .Where(t => DateTime.SpecifyKind(t.TransactionDate, DateTimeKind.Utc) <= periodEnd &&
                                         (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
                             .ToList();
 
+                        Console.WriteLine($"Goal {goal.SavingsGoalId}, period ending {periodEnd}, found {transactionsBeforePeriod.Count} transactions.");
+                        if (transactionsBeforePeriod.Any())
+                        {
+                            Console.WriteLine($"Transactions range: {transactionsBeforePeriod.Min(t => t.TransactionDate)} to {transactionsBeforePeriod.Max(t => t.TransactionDate)}");
+                            foreach (var t in transactionsBeforePeriod)
+                            {
+                                Console.WriteLine($"Transaction {t.TransactionId}: Date={t.TransactionDate}, Type={t.Type}, Amount={t.Amount}");
+                            }
+                        }
+
                         amountAtPeriodEnd = transactionsBeforePeriod
                             .Sum(t => t.Type == TransactionType.TransferToGoal ? t.Amount : -t.Amount);
+                        Console.WriteLine($"Goal {goal.SavingsGoalId}, calculated amountAtPeriodEnd={amountAtPeriodEnd}");
                     }
 
                     totalSavings += Math.Max(0, amountAtPeriodEnd);
@@ -985,6 +1028,7 @@ namespace growmesh_API.Controllers
                     TotalSavings = totalSavings,
                     Difference = 0
                 });
+                Console.WriteLine($"Period ending {periodEnd}, totalSavings={totalSavings}");
             }
 
             // Calculate differences between periods
@@ -994,6 +1038,12 @@ namespace growmesh_API.Controllers
             }
             if (trendData.Count > 0)
                 trendData[0].Difference = 0;
+
+            Console.WriteLine("Final trend data:");
+            foreach (var data in trendData)
+            {
+                Console.WriteLine($"PeriodEnd={data.PeriodEnd}, TotalSavings={data.TotalSavings}, Difference={data.Difference}");
+            }
 
             return Ok(trendData);
         }
@@ -1012,8 +1062,21 @@ namespace growmesh_API.Controllers
 
             if (savingsGoal == null) return NotFound("Savings goal not found");
 
+            Console.WriteLine($"Found savings goal {savingsGoal.SavingsGoalId} for user {userId}, CreatedAt={savingsGoal.CreatedAt}, Transactions={savingsGoal.Transactions.Count}");
+
+            // Log transaction details
+            if (savingsGoal.Transactions.Any())
+            {
+                Console.WriteLine($"Transaction range: {savingsGoal.Transactions.Min(t => t.TransactionDate)} to {savingsGoal.Transactions.Max(t => t.TransactionDate)}");
+                foreach (var t in savingsGoal.Transactions)
+                {
+                    Console.WriteLine($"Transaction {t.TransactionId}: Date={t.TransactionDate}, Type={t.Type}, Amount={t.Amount}");
+                }
+            }
+
             // Determine period type based on goal type
             string periodType = DeterminePeriodType(savingsGoal);
+            Console.WriteLine($"Determined periodType={periodType} for goal {savingsGoal.SavingsGoalId}");
 
             var trendData = new List<SavingsGoalTrendDTO>();
             var now = DateTime.UtcNow;
@@ -1022,22 +1085,31 @@ namespace growmesh_API.Controllers
             for (int i = periods - 1; i >= 0; i--)
             {
                 DateTime periodEnd = CalculatePeriodEnd(periodType, now, i, savingsGoal);
+                Console.WriteLine($"Period i={i}, periodEnd={periodEnd}");
 
                 decimal cumulativeSavings = 0;
 
                 // Calculate cumulative savings up to period end
                 var transactionsBeforePeriod = savingsGoal.Transactions
-                    .Where(t => t.TransactionDate <= periodEnd &&
+                    .Where(t => DateTime.SpecifyKind(t.TransactionDate, DateTimeKind.Utc) <= periodEnd &&
                                 (t.Type == TransactionType.TransferToGoal || t.Type == TransactionType.TransferFromGoal))
                     .ToList();
 
+                Console.WriteLine($"Found {transactionsBeforePeriod.Count} transactions before {periodEnd}");
+                if (transactionsBeforePeriod.Any())
+                {
+                    Console.WriteLine($"Transactions range: {transactionsBeforePeriod.Min(t => t.TransactionDate)} to {transactionsBeforePeriod.Max(t => t.TransactionDate)}");
+                }
+
                 cumulativeSavings = transactionsBeforePeriod
                     .Sum(t => t.Type == TransactionType.TransferToGoal ? t.Amount : -t.Amount);
+                Console.WriteLine($"Calculated cumulativeSavings={cumulativeSavings} for period ending {periodEnd}");
 
                 // For the latest period, use CurrentAmount if it's higher
                 if (i == 0 && savingsGoal.CurrentAmount > cumulativeSavings)
                 {
                     cumulativeSavings = savingsGoal.CurrentAmount;
+                    Console.WriteLine($"Latest period (i=0), using CurrentAmount={cumulativeSavings}");
                 }
 
                 // Calculate target cumulative savings for TimeBased goals
@@ -1045,6 +1117,7 @@ namespace growmesh_API.Controllers
                 if (savingsGoal.LockType == LockType.TimeBased && savingsGoal.TargetDate.HasValue)
                 {
                     targetCumulativeSavings = CalculateTargetCumulativeSavings(savingsGoal, periodEnd);
+                    Console.WriteLine($"TimeBased goal, targetCumulativeSavings={targetCumulativeSavings} for period ending {periodEnd}");
                 }
 
                 trendData.Add(new SavingsGoalTrendDTO
@@ -1063,6 +1136,12 @@ namespace growmesh_API.Controllers
             }
             if (trendData.Count > 0)
                 trendData[0].Difference = trendData[0].CumulativeSavings;  // Initial difference
+
+            Console.WriteLine("Final trend data for savings goal:");
+            foreach (var data in trendData)
+            {
+                Console.WriteLine($"PeriodEnd={data.PeriodEnd}, CumulativeSavings={data.CumulativeSavings}, Difference={data.Difference}, Target={data.TargetCumulativeSavings}");
+            }
 
             return Ok(new SavingsGoalTrendResponseDTO
             {
@@ -1104,15 +1183,23 @@ namespace growmesh_API.Controllers
             switch (periodType)
             {
                 case "day":
-                    periodEnd = now.Date.AddDays(-i);
+                    periodEnd = now.Date.AddDays(-i).AddHours(23).AddMinutes(59).AddSeconds(59).AddMilliseconds(999);
                     break;
                 case "week":
                     // End of the week (Sunday)
                     int daysUntilSunday = ((int)now.DayOfWeek - (int)DayOfWeek.Sunday + 7) % 7;
-                    periodEnd = now.Date.AddDays(-daysUntilSunday - (i * 7));
+                    periodEnd = now.Date.AddDays(-daysUntilSunday - (i * 7)).AddHours(23).AddMinutes(59).AddSeconds(59).AddMilliseconds(999);
                     break;
                 case "month":
-                    periodEnd = new DateTime(now.Year, now.Month, 1).AddMonths(-i).AddDays(-1);
+                    if (i == 0)
+                    {
+                        periodEnd = now;
+                    }
+                    else
+                    {
+                        var date = now.AddMonths(-i);
+                        periodEnd = new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month), 23, 59, 59, 999, DateTimeKind.Utc);
+                    }
                     break;
                 default:
                     throw new InvalidOperationException("Invalid period type");
@@ -1122,6 +1209,7 @@ namespace growmesh_API.Controllers
             if (goal.CompletedAt.HasValue && periodEnd > goal.CompletedAt.Value)
             {
                 periodEnd = goal.CompletedAt.Value;
+                Console.WriteLine($"Capped periodEnd at CompletedAt={periodEnd} for goal {goal.SavingsGoalId}");
             }
 
             return periodEnd;
@@ -1139,6 +1227,7 @@ namespace growmesh_API.Controllers
             var progressRatio = (decimal)elapsedDuration / (decimal)totalDuration;
             return progressRatio * goal.TargetAmount;
         }
+        //===============================================================================================================================================================================================
 
         // POST: api/SavingsGoal/mark-as-done/{id}
         [HttpPost("mark-as-done/{id}")]
