@@ -7,7 +7,7 @@ namespace growmesh_API.DTOs.ResponseDTOs
         public int SavingsGoalId { get; set; }
         public string SavingsGoalName { get; set; }
         public decimal? TargetAmount { get; set; }
-        public decimal CurrentAmount { get; set; }
+        public decimal CurrentAmount { get; set; } 
         public DateTime? TargetDate { get; set; }
         public string? Description { get; set; }
         public LockType LockType { get; set; }
