@@ -757,6 +757,9 @@ namespace growmesh_API.Controllers
             if (savingsGoal.Status == SavingsGoalStatus.MarkDone)
                 return BadRequest("Cannot deposit into a savings goal that has reached its target (MarkDone). Please mark the goal as done to transfer funds to your balance.");
 
+            if (savingsGoal.LockType == LockType.AmountBased && amount > savingsGoal.TargetAmount)
+                return BadRequest("Deposit amount can't be greater than target amount");
+
             var bankAccount = savingsGoal.BankAccount;
             if (bankAccount.Balance < amount) return BadRequest("Insufficient funds in bank account");
 
